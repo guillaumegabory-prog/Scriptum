@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scriptum</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&display=swap');
+
+:root {
+  --ink: #1a1208;
+  --parchment: #f5f0e8;
+  --gold: #8b6914;
+  --gold-light: #c9a84c;
+  --bar-bg: #1e1408;
+  --bar-border: #3d2a0a;
+  --danger: #8b1a1a;
+  --success: #1a4a2e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0d0a05;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+#header {
+  background: var(--bar-bg);
+  border-bottom: 1px solid var(--bar-border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#logo {
+  color: var(--gold-light);
+  font-size: 22px;
+  letter-spacing: 4px;
+  font-weight: 300;
+  text-transform: uppercase;
+}
+#logo span {
+  color: var(--gold);
+  font-size: 10px;
+  display: block;
+  letter-spacing: 6px;
+  margin-top: -3px;
+}
+
+#filename-display {
+  color: #5a4020;
+  font-size: 11px;
+  letter-spacing: 2px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#word-count {
+  color: #3a2a10;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+/* ── TOOLBAR ── */
+#toolbar {
+  background: #160f04;
+  border-bottom: 1px solid var(--bar-border);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.sep { width: 1px; height: 26px; background: var(--bar-border); margin: 0 5px; }
+
+.tb-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #8a6a30;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: 1px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.tb-btn:hover, .tb-btn.active {
+  background: rgba(139,105,20,.15);
+  border-color: var(--gold);
+  color: var(--gold-light);
+}
+.tb-btn.danger { color: #8b4a4a; }
+.tb-btn.danger:hover { background: rgba(139,26,26,.15); border-color: var(--danger); color: #c08080; }
+.tb-btn.green { color: #4a8a4a; }
+.tb-btn.green:hover { background: rgba(26,74,46,.15); border-color: #2d6b2d; color: #80c080; }
+
+/* ── SECTION LABELS ── */
+.tb-section {
+  color: #3a2a10;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+
+/* ── EDITOR AREA ── */
+#editor-wrap {
+  flex: 1;
+  overflow-y: auto;
+  background: #0d0a05;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px;
+}
+
+#page {
+  width: 100%;
+  max-width: 720px;
+  min-height: 100%;
+  background: var(--parchment);
+  box-shadow: 0 0 0 1px #3d2a0a, 0 20px 60px rgba(0,0,0,.8), inset 0 0 30px rgba(139,105,20,.05);
+  padding: 80px 90px;
+  position: relative;
+}
+#page::before {
+  content: '';
+  position: absolute;
+  left: 60px; top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(139,105,20,.15);
+}
+
+#editor {
+  width: 100%;
+  min-height: 100%;
+  outline: none;
+  font-family: 'Bookman Old Style', 'Book Antiqua', Palatino, 'Palatino Linotype', serif;
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--ink);
+  background: transparent;
+  caret-color: var(--gold);
+  word-wrap: break-word;
+}
+#editor * {
+  color: var(--ink) !important;
+  background: transparent !important;
+  font-family: 'Bookman Old Style', 'Book Antiqua', Palatino, 'Palatino Linotype', serif !important;
+  font-size: 14px !important;
+}
+#editor:empty::before {
+  content: 'Commencez à écrire…';
+  color: rgba(139,105,20,.35);
+  pointer-events: none;
+  font-style: italic;
+}
+
+/* ── MODALS ── */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+
+.modal {
+  background: #1e1408;
+  border: 1px solid var(--gold);
+  padding: 36px;
+  max-width: 440px;
+  width: 92%;
+  box-shadow: 0 0 60px rgba(139,105,20,.3);
+  position: relative;
+}
+.modal::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.modal h2 {
+  color: var(--gold-light);
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.modal p {
+  color: #6a5030;
+  font-size: 12px;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.modal input[type=password],
+.modal input[type=text] {
+  width: 100%;
+  background: #0d0a05;
+  border: 1px solid var(--bar-border);
+  color: var(--gold-light);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  padding: 11px 14px;
+  letter-spacing: 2px;
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color .2s;
+}
+.modal input:focus { border-color: var(--gold); }
+
+.modal-error {
+  color: #c08080;
+  font-size: 11px;
+  letter-spacing: 1px;
+  margin-top: -6px;
+  margin-bottom: 10px;
+  display: none;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.btn-ok {
+  background: var(--gold);
+  border: none;
+  color: #0d0a05;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 22px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-ok:hover { background: var(--gold-light); }
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--bar-border);
+  color: #6a5030;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  padding: 10px 18px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-cancel:hover { border-color: var(--gold); color: #a08050; }
+
+/* Format selector */
+.fmt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.fmt-opt {
+  padding: 12px 8px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid var(--bar-border);
+  color: #6a5030;
+  font-size: 12px;
+  letter-spacing: 1px;
+  transition: all .2s;
+}
+.fmt-opt:hover, .fmt-opt.active {
+  border-color: var(--gold);
+  color: var(--gold-light);
+  background: rgba(139,105,20,.1);
+}
+.fmt-opt .fi { font-size: 20px; display: block; margin-bottom: 5px; }
+.fmt-opt .fn { font-size: 11px; }
+.fmt-opt .fe { font-size: 9px; color: var(--gold); letter-spacing: 1px; margin-top: 2px; }
+
+/* Progress */
+#import-progress {
+  display: none;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(139,105,20,.08);
+  border: 1px solid var(--bar-border);
+  color: #a08050;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* ── TOAST ── */
+#toast {
+  position: fixed;
+  bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: #1e1408;
+  border: 1px solid var(--gold);
+  color: var(--gold-light);
+  padding: 11px 26px;
+  font-size: 13px;
+  letter-spacing: 2px;
+  transition: transform .3s;
+  z-index: 300;
+  pointer-events: none;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.error { border-color: var(--danger); color: #c08080; }
+
+/* scrollbar */
+#editor-wrap::-webkit-scrollbar { width: 5px; }
+#editor-wrap::-webkit-scrollbar-track { background: #0d0a05; }
+#editor-wrap::-webkit-scrollbar-thumb { background: #3d2a0a; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="logo">Scriptum <span>éditeur · convertisseur</span></div>
+  <span id="filename-display">sans titre</span>
+  <span id="word-count">0 mot</span>
+</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+
+  <!-- POLICE & TAILLE -->
+  <span class="tb-section">Police</span>
+  <select id="font-select" onchange="changeFont(this.value)" style="background:#0d0a05;border:1px solid var(--bar-border);color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-size:12px;padding:4px 8px;cursor:pointer;outline:none;">
+    <option value="'Bookman Old Style','Book Antiqua',Palatino,serif">Bookman Old Style</option>
+    <option value="'Courier New',Courier,monospace">Courier New</option>
+    <option value="Georgia,serif">Georgia</option>
+    <option value="'Times New Roman',Times,serif">Times New Roman</option>
+  </select>
+  <select id="size-select" onchange="changeSize(this.value)" style="background:#0d0a05;border:1px solid var(--bar-border);color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-size:12px;padding:4px 8px;cursor:pointer;outline:none;">
+    <option value="10">10pt</option>
+    <option value="11">11pt</option>
+    <option value="12">12pt</option>
+    <option value="14" selected>14pt</option>
+    <option value="16">16pt</option>
+    <option value="18">18pt</option>
+  </select>
+
+  <div class="sep"></div>
+
+  <!-- ALIGNEMENTS -->
+  <span class="tb-section">Alignement</span>
+  <button class="tb-btn active" id="btn-left"    onclick="align('left')">◧ Gauche</button>
+  <button class="tb-btn"        id="btn-center"  onclick="align('center')">◫ Centre</button>
+  <button class="tb-btn"        id="btn-right"   onclick="align('right')">◨ Droite</button>
+  <button class="tb-btn"        id="btn-justify" onclick="align('justify')">▤ Justifier</button>
+
+  <div class="sep"></div>
+
+  <!-- FICHIER GTEXT -->
+  <span class="tb-section">Fichier .gtext</span>
+  <button class="tb-btn" onclick="showNew()">✦ Nouveau</button>
+  <button class="tb-btn" onclick="showSave()">⬇ Enregistrer</button>
+  <button class="tb-btn" onclick="triggerOpenGtext()">⬆ Ouvrir</button>
+  <input type="file" id="file-gtext" accept=".gtext" style="display:none" onchange="openGtext(event)">
+
+  <div class="sep"></div>
+
+  <!-- IMPORT → GTEXT -->
+  <span class="tb-section">Importer → .gtext</span>
+  <button class="tb-btn green" onclick="triggerImport()">↳ Importer doc…</button>
+  <input type="file" id="file-import" accept=".txt,.docx,.odt,.pdf,.html,.htm,.md" style="display:none" onchange="importDoc(event)">
+
+  <div class="sep"></div>
+
+  <!-- EXPORT -->
+  <span class="tb-section">Exporter</span>
+  <button class="tb-btn" onclick="showExport()">↗ Exporter…</button>
+
+  <div class="sep"></div>
+
+  <button class="tb-btn danger" onclick="showClear()">✕ Effacer</button>
+</div>
+
+<!-- EDITOR -->
+<div id="editor-wrap">
+  <div id="page">
+    <div id="editor" contenteditable="true" spellcheck="true"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL SAVE ══ -->
+<div class="modal-overlay" id="modal-save">
+  <div class="modal">
+    <h2>Enregistrer en .gtext</h2>
+    <p>Choisissez un mot de passe pour chiffrer votre fichier.<br>Sans ce mot de passe, le fichier sera illisible.</p>
+    <input type="text"     id="save-name"  placeholder="Nom du fichier…">
+    <input type="password" id="save-pass"  placeholder="Mot de passe…" autocomplete="new-password">
+    <input type="password" id="save-pass2" placeholder="Confirmer le mot de passe…" autocomplete="new-password">
+    <div class="modal-error" id="save-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-save')">Annuler</button>
+      <button class="btn-ok" onclick="doSave()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL OPEN GTEXT ══ -->
+<div class="modal-overlay" id="modal-open">
+  <div class="modal">
+    <h2>Ouvrir un .gtext</h2>
+    <p>Entrez le mot de passe pour déchiffrer ce fichier.</p>
+    <input type="password" id="open-pass" placeholder="Mot de passe…" autocomplete="current-password">
+    <div class="modal-error" id="open-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-open'); pendingRaw=null;">Annuler</button>
+      <button class="btn-ok" onclick="doOpen()">Ouvrir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL IMPORT ══ -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal">
+    <h2>Importer → .gtext</h2>
+    <p id="import-filename" style="color:var(--gold);font-size:13px;letter-spacing:1px;margin-bottom:12px;"></p>
+    <p>Le document sera extrait et chiffré en .gtext.<br>Choisissez un mot de passe pour le protéger.</p>
+    <input type="text"     id="import-name"  placeholder="Nom du fichier de destination…">
+    <input type="password" id="import-pass"  placeholder="Mot de passe…" autocomplete="new-password">
+    <input type="password" id="import-pass2" placeholder="Confirmer…" autocomplete="new-password">
+    <div class="modal-error" id="import-error"></div>
+    <div id="import-progress">Extraction en cours…</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-import'); pendingImport=null;">Annuler</button>
+      <button class="btn-ok" id="import-ok-btn" onclick="doImport()">Chiffrer &amp; Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL EXPORT ══ -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal">
+    <h2>Exporter le document</h2>
+    <p>Choisissez le format de sortie.<br>Le fichier actuel doit être ouvert (déchiffré) dans l'éditeur.</p>
+    <div class="fmt-grid">
+      <div class="fmt-opt active" id="fmt-rtf" onclick="selectFmt('rtf')">
+        <span class="fi">📘</span>
+        <div class="fn">Word</div>
+        <div class="fe">.rtf</div>
+      </div>
+      <div class="fmt-opt" id="fmt-html" onclick="selectFmt('html')">
+        <span class="fi">📗</span>
+        <div class="fn">OpenOffice</div>
+        <div class="fe">.html</div>
+      </div>
+      <div class="fmt-opt" id="fmt-pdf" onclick="selectFmt('pdf')">
+        <span class="fi">📕</span>
+        <div class="fn">PDF</div>
+        <div class="fe">impression</div>
+      </div>
+    </div>
+    <p style="margin-top:0;font-size:11px;">
+      Word : ouvrez le .rtf avec Word → Enregistrer sous → .docx<br>
+      OpenOffice : ouvrez le .html avec LibreOffice → .odt<br>
+      PDF : impression → Enregistrer en PDF
+    </p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-export')">Annuler</button>
+      <button class="btn-ok" onclick="doExport()">Exporter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NOUVEAU ══ -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal">
+    <h2>Nouveau document</h2>
+    <p>Le contenu actuel sera effacé. Continuer ?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-new')">Annuler</button>
+      <button class="btn-ok" onclick="doNew()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL EFFACER ══ -->
+<div class="modal-overlay" id="modal-clear">
+  <div class="modal">
+    <h2>Effacer</h2>
+    <p>Tout le contenu sera supprimé. Action irréversible.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-clear')">Annuler</button>
+      <button class="btn-ok" onclick="doClear()">Effacer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL OUVERTURE NAS ══ -->
+<div class="modal-overlay" id="modal-nas">
+  <div class="modal">
+    <h2>Ouvrir depuis le NAS</h2>
+    <p id="nas-url-display" style="color:var(--gold);font-size:13px;letter-spacing:1px;margin-bottom:16px;word-break:break-all;"></p>
+    <p>Entrez le mot de passe pour déchiffrer ce fichier.</p>
+    <input type="password" id="nas-pass" placeholder="Mot de passe…" autocomplete="current-password">
+    <div class="modal-error" id="nas-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-nas')">Annuler</button>
+      <button class="btn-ok" id="nas-ok-btn" onclick="doOpenFromNas()">Ouvrir</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONSTANTES
+// ══════════════════════════════════════════════
+const MAGIC = 'GTEXT_V1_SCRIPTUM';
+const editor = document.getElementById('editor');
+let currentFilename = 'sans titre';
+let pendingRaw = null;
+let pendingFilename = null;
+let pendingImport = null; // {name, html}
+let exportFmt = 'rtf';
+
+// ══════════════════════════════════════════════
+// ALIGNEMENT
+// ══════════════════════════════════════════════
+function align(dir) {
+  if (dir === 'center')  document.execCommand('justifyCenter', false);
+  else if (dir === 'right')   document.execCommand('justifyRight', false);
+  else if (dir === 'justify') document.execCommand('justifyFull', false);
+  else                        document.execCommand('justifyLeft', false);
+  ['left','center','right','justify'].forEach(d =>
+    document.getElementById('btn-'+d).classList.toggle('active', d===dir)
+  );
+  editor.focus();
+}
+
+// ══════════════════════════════════════════════
+// POLICE & TAILLE
+// ══════════════════════════════════════════════
+function changeFont(font) {
+  document.getElementById('editor').style.fontFamily = font;
+}
+
+function changeSize(size) {
+  document.getElementById('editor').style.fontSize = size + 'px';
+}
+
+// ══════════════════════════════════════════════
+// MOT COUNT
+// ══════════════════════════════════════════════
+editor.addEventListener('input', () => {
+  const t = editor.innerText.trim();
+  const w = t ? t.split(/\s+/).length : 0;
+  document.getElementById('word-count').textContent = w + ' mot' + (w>1?'s':'');
+});
+
+// ══════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+document.querySelectorAll('.modal-overlay').forEach(m =>
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('show'); })
+);
+
+// ══════════════════════════════════════════════
+// NOUVEAU / EFFACER
+// ══════════════════════════════════════════════
+function showNew()   { openModal('modal-new'); }
+function showClear() { openModal('modal-clear'); }
+
+function doNew() {
+  editor.innerHTML = '';
+  currentFilename = 'sans titre';
+  document.getElementById('filename-display').textContent = 'sans titre';
+  closeModal('modal-new');
+  toast('Nouveau document');
+}
+function doClear() {
+  editor.innerHTML = '';
+  closeModal('modal-clear');
+  toast('Contenu effacé');
+}
+
+// ══════════════════════════════════════════════
+// ENREGISTRER EN .GTEXT
+// ══════════════════════════════════════════════
+function showSave() {
+  document.getElementById('save-name').value  = currentFilename !== 'sans titre' ? currentFilename : '';
+  document.getElementById('save-pass').value  = '';
+  document.getElementById('save-pass2').value = '';
+  document.getElementById('save-error').style.display = 'none';
+  openModal('modal-save');
+  setTimeout(() => document.getElementById('save-name').focus(), 100);
+}
+
+function doSave() {
+  const name = document.getElementById('save-name').value.trim() || 'document';
+  const p1   = document.getElementById('save-pass').value;
+  const p2   = document.getElementById('save-pass2').value;
+  const err  = document.getElementById('save-error');
+  if (!p1) { err.textContent='Le mot de passe est requis.'; err.style.display='block'; return; }
+  if (p1!==p2) { err.textContent='Les mots de passe ne correspondent pas.'; err.style.display='block'; return; }
+  err.style.display = 'none';
+
+  const payload = JSON.stringify({ magic: MAGIC, version: 1, created: new Date().toISOString(), content: editor.innerHTML });
+  const encrypted = CryptoJS.AES.encrypt(payload, p1).toString();
+  downloadBlob(new Blob([MAGIC+'\n'+encrypted], {type:'application/octet-stream'}), name+'.gtext');
+
+  currentFilename = name;
+  document.getElementById('filename-display').textContent = name;
+  closeModal('modal-save');
+  toast('Enregistré : ' + name + '.gtext');
+}
+
+// ══════════════════════════════════════════════
+// OUVRIR UN .GTEXT
+// ══════════════════════════════════════════════
+function triggerOpenGtext() {
+  document.getElementById('file-gtext').value='';
+  document.getElementById('file-gtext').click();
+}
+
+function openGtext(e) {
+  const file = e.target.files[0]; if(!file) return;
+  pendingFilename = file.name.replace('.gtext','');
+  const r = new FileReader();
+  r.onload = ev => {
+    pendingRaw = ev.target.result;
+    if (!pendingRaw.startsWith(MAGIC)) { toast('Format invalide.', true); return; }
+    document.getElementById('open-pass').value = '';
+    document.getElementById('open-error').style.display = 'none';
+    openModal('modal-open');
+    setTimeout(() => document.getElementById('open-pass').focus(), 100);
+  };
+  r.readAsText(file);
+}
+
+function doOpen() {
+  const pass = document.getElementById('open-pass').value;
+  const err  = document.getElementById('open-error');
+  if (!pass) { err.textContent='Le mot de passe est requis.'; err.style.display='block'; return; }
+  try {
+    const enc   = pendingRaw.substring(MAGIC.length+1);
+    const bytes = CryptoJS.AES.decrypt(enc, pass);
+    const plain = bytes.toString(CryptoJS.enc.Utf8);
+    if (!plain) throw new Error();
+    const data  = JSON.parse(plain);
+    if (data.magic !== MAGIC) throw new Error();
+    editor.innerHTML = data.content;
+    editor.querySelectorAll('*').forEach(el => {
+      // Préserver text-align, supprimer le reste
+      const align = el.style.textAlign;
+      el.removeAttribute('style');
+      el.removeAttribute('color');
+      el.removeAttribute('face');
+      el.removeAttribute('size');
+      if (align) el.style.textAlign = align;
+    });
+    currentFilename  = pendingFilename;
+    document.getElementById('filename-display').textContent = pendingFilename;
+    closeModal('modal-open');
+    toast('Ouvert : ' + pendingFilename);
+    pendingRaw = null;
+  } catch {
+    err.textContent = 'Mot de passe incorrect ou fichier corrompu.';
+    err.style.display = 'block';
+  }
+}
+
+document.getElementById('open-pass').addEventListener('keydown', e => { if(e.key==='Enter') doOpen(); });
+
+// ══════════════════════════════════════════════
+// IMPORT DOCUMENT → .GTEXT
+// ══════════════════════════════════════════════
+function triggerImport() {
+  document.getElementById('file-import').value='';
+  document.getElementById('file-import').click();
+}
+
+async function importDoc(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const ext  = file.name.split('.').pop().toLowerCase();
+  const prog = document.getElementById('import-progress');
+
+  document.getElementById('import-filename').textContent = '📄 ' + file.name;
+  document.getElementById('import-name').value  = file.name.replace(/\.[^.]+$/, '');
+  document.getElementById('import-pass').value  = '';
+  document.getElementById('import-pass2').value = '';
+  document.getElementById('import-error').style.display = 'none';
+  prog.style.display = 'none';
+  pendingImport = null;
+
+  openModal('modal-import');
+  prog.style.display = 'block';
+  prog.textContent   = 'Extraction du contenu…';
+
+  try {
+    let html = '';
+
+    if (['txt','md'].includes(ext)) {
+      // Texte brut → paragraphes
+      const text = await file.text();
+      html = text.split('\n').map(l => l.trim() ? `<p>${escapeHtml(l)}</p>` : '<p><br></p>').join('');
+
+    } else if (ext === 'html' || ext === 'htm') {
+      const text = await file.text();
+      const doc  = new DOMParser().parseFromString(text, 'text/html');
+      html = doc.body.innerHTML;
+
+    } else if (ext === 'docx') {
+      html = await extractDocx(file);
+
+    } else if (ext === 'odt') {
+      html = await extractOdt(file);
+
+    } else if (ext === 'pdf') {
+      html = await extractPdf(file);
+
+    } else {
+      throw new Error('Format non supporté : .' + ext);
+    }
+
+    pendingImport = { name: file.name.replace(/\.[^.]+$/, ''), html };
+    prog.textContent = '✓ Contenu extrait (' + wordCount(html) + ' mots). Choisissez un mot de passe.';
+
+  } catch(err) {
+    prog.textContent = '⚠ ' + (err.message || 'Erreur lors de l\'extraction.');
+    document.getElementById('import-ok-btn').disabled = true;
+    setTimeout(() => document.getElementById('import-ok-btn').disabled = false, 100);
+  }
+}
+
+function doImport() {
+  if (!pendingImport) { toast('Aucun fichier chargé.', true); return; }
+  const name = document.getElementById('import-name').value.trim() || pendingImport.name;
+  const p1   = document.getElementById('import-pass').value;
+  const p2   = document.getElementById('import-pass2').value;
+  const err  = document.getElementById('import-error');
+
+  if (!p1) { err.textContent='Le mot de passe est requis.'; err.style.display='block'; return; }
+  if (p1!==p2) { err.textContent='Les mots de passe ne correspondent pas.'; err.style.display='block'; return; }
+  err.style.display = 'none';
+
+  const payload   = JSON.stringify({ magic: MAGIC, version: 1, created: new Date().toISOString(), content: pendingImport.html });
+  const encrypted = CryptoJS.AES.encrypt(payload, p1).toString();
+  downloadBlob(new Blob([MAGIC+'\n'+encrypted], {type:'application/octet-stream'}), name+'.gtext');
+
+  // Ouvrir dans l'éditeur en nettoyant les styles inline
+  editor.innerHTML = pendingImport.html;
+  editor.querySelectorAll('*').forEach(el => {
+      // Préserver text-align, supprimer le reste
+      const align = el.style.textAlign;
+      el.removeAttribute('style');
+      el.removeAttribute('class');
+      el.removeAttribute('color');
+      el.removeAttribute('face');
+      el.removeAttribute('size');
+      if (align) el.style.textAlign = align;
+  });
+  currentFilename  = name;
+  document.getElementById('filename-display').textContent = name;
+  const wc = wordCount(pendingImport.html);
+  document.getElementById('word-count').textContent = wc + ' mot' + (wc>1?'s':'');
+
+  closeModal('modal-import');
+  toast('Importé et chiffré : ' + name + '.gtext');
+  pendingImport = null;
+}
+
+// ── Extraction DOCX — HTML propre sans styles Word ──
+async function extractDocx(file) {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('word/document.xml').async('string');
+  return docxXmlToHtml(xml);
+}
+
+function docxXmlToHtml(xml) {
+  let html = '';
+
+  // Extraire chaque paragraphe
+  const paraRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
+  const paras = xml.match(paraRegex) || [];
+
+  paras.forEach(para => {
+    // Alignement uniquement (on ignore toutes les couleurs/styles)
+    const jcMatch = para.match(/w:jc[^>]*w:val="([^"]+)"/);
+    const jcVal   = jcMatch ? jcMatch[1] : '';
+    const alignMap = { center:'center', right:'right', both:'justify', distribute:'justify' };
+    const align    = alignMap[jcVal] || '';
+    const style    = align ? ` style="text-align:${align}"` : '';
+
+    // Extraire uniquement le texte brut des w:t, ignorer tout le reste
+    const textRegex = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
+    let text = '', m;
+    while ((m = textRegex.exec(para)) !== null) {
+      text += m[1];
+    }
+
+    // Nettoyer : espaces insécables, espaces multiples
+    text = text.replace(/\xa0/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Produire un <p> propre SANS aucun style de couleur ou police
+    html += text ? `<p${style}>${escapeHtml(text)}</p>` : '<p><br></p>';
+  });
+
+  return html || '<p><br></p>';
+}
+
+// ── Extraction ODT (ZIP XML) ──
+async function extractOdt(file) {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('content.xml').async('string');
+  return odtXmlToHtml(xml);
+}
+
+function odtXmlToHtml(xml) {
+  const doc   = new DOMParser().parseFromString(xml, 'application/xml');
+  const paras = doc.querySelectorAll('p');
+  let html = '';
+  paras.forEach(p => {
+    const text = escapeHtml(p.textContent);
+    html += text ? `<p>${text}</p>` : '<p><br></p>';
+  });
+  return html || '<p><br></p>';
+}
+
+// ── Extraction PDF (texte brut via canvas) ──
+async function extractPdf(file) {
+  // PDF.js CDN
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  const buf  = await file.arrayBuffer();
+  const pdf  = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for (let i=1; i<=pdf.numPages; i++) {
+    const page    = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it => it.str).join(' ') + '\n\n';
+  }
+  if (!text.trim()) throw new Error('Ce PDF ne contient pas de texte extractible (image scannée).');
+  return text.split('\n').map(l => l.trim() ? `<p>${escapeHtml(l)}</p>` : '<p><br></p>').join('');
+}
+
+// ── Chargement dynamique de script ──
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('Chargement impossible : ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+// ══════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════
+function showExport() {
+  if (!editor.innerHTML.trim()) { toast('L\'éditeur est vide.', true); return; }
+  openModal('modal-export');
+}
+
+function selectFmt(f) {
+  exportFmt = f;
+  ['rtf','html','pdf'].forEach(x =>
+    document.getElementById('fmt-'+x).classList.toggle('active', x===f)
+  );
+}
+
+function doExport() {
+  const name = currentFilename !== 'sans titre' ? currentFilename : 'document';
+  const html = editor.innerHTML;
+  closeModal('modal-export');
+
+  if (exportFmt === 'pdf') {
+    const w = window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>@page{margin:2.5cm}body{font-family:'Bookman Old Style','Book Antiqua',Palatino,serif;font-size:12pt;line-height:1.9;color:#1a1208}</style>
+      </head><body>${html}</body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+    toast('Fenêtre d\'impression ouverte → Enregistrer en PDF');
+
+  } else if (exportFmt === 'rtf') {
+    downloadBlob(new Blob([buildRTF(html)], {type:'application/rtf'}), name+'.rtf');
+    toast('Word (.rtf) exporté');
+
+  } else {
+    const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${name}</title>
+      <style>body{font-family:'Bookman Old Style','Book Antiqua',Palatino,serif;font-size:12pt;line-height:1.9;margin:2.5cm;color:#1a1208}</style>
+      </head><body>${html}</body></html>`;
+    downloadBlob(new Blob([full], {type:'text/html;charset=utf-8'}), name+'.html');
+    toast('OpenOffice (.html) exporté');
+  }
+}
+
+// ── Générateur RTF ──
+function buildRTF(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  let rtf = '{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0\\froman\\fcharset0 Bookman Old Style;}}\n{\\colortbl;\\red26\\green18\\blue8;}\n\\widowctrl\\f0\\fs24\\cf1 ';
+
+  function node2rtf(n) {
+    if (n.nodeType===3) return rtfEsc(n.textContent);
+    if (n.nodeType!==1) return '';
+    const tag  = n.tagName.toLowerCase();
+    const kids = Array.from(n.childNodes).map(node2rtf).join('');
+    const al   = n.style?.textAlign||'';
+    const pfx  = al==='center'?'\\qc ':al==='right'?'\\qr ':al==='justify'?'\\qj ':'';
+    if (tag==='p'||tag==='div') return pfx+kids+'\\par\n';
+    if (tag==='b'||tag==='strong') return '{\\b '+kids+'}';
+    if (tag==='i'||tag==='em')     return '{\\i '+kids+'}';
+    if (tag==='u')                 return '{\\ul '+kids+'}';
+    if (tag==='br')                return '\\line\n';
+    return kids;
+  }
+
+  rtf += Array.from(doc.body.childNodes).map(node2rtf).join('') + '}';
+  return rtf;
+}
+
+function rtfEsc(t) {
+  return t.replace(/\\/g,'\\\\').replace(/\{/g,'\\{').replace(/\}/g,'\\}')
+    .replace(/[^\x00-\x7F]/g, c => {
+      const code = c.charCodeAt(0);
+      return code<256 ? "\\'" + code.toString(16).padStart(2,'0') : '\\u'+code+'?';
+    });
+}
+
+// ══════════════════════════════════════════════
+// OUVERTURE DEPUIS LIEN NAS (paramètre URL)
+// ══════════════════════════════════════════════
+// Détecte au démarrage si un fichier NAS est passé en paramètre
+// ex: Scriptum.html?file=https://ug.link/...&name=chapitre1
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const fileUrl = params.get('file');
+  const fileName = params.get('name') || 'document';
+  if (fileUrl) {
+    pendingNasUrl = fileUrl;
+    pendingNasName = fileName;
+    document.getElementById('nas-url-display').textContent = '🔗 ' + (fileName || fileUrl);
+    document.getElementById('nas-pass').value = '';
+    document.getElementById('nas-error').style.display = 'none';
+    openModal('modal-nas');
+    setTimeout(() => document.getElementById('nas-pass').focus(), 100);
+  }
+});
+
+let pendingNasUrl = null;
+let pendingNasName = null;
+
+async function doOpenFromNas() {
+  const pass = document.getElementById('nas-pass').value;
+  const err  = document.getElementById('nas-error');
+  if (!pass) { err.textContent='Le mot de passe est requis.'; err.style.display='block'; return; }
+
+  const btn = document.getElementById('nas-ok-btn');
+  btn.textContent = 'Téléchargement…'; btn.disabled = true;
+
+  try {
+    const resp = await fetch(pendingNasUrl);
+    if (!resp.ok) throw new Error('Impossible de télécharger le fichier (erreur ' + resp.status + ')');
+    const text = await resp.text();
+    if (!text.startsWith(MAGIC)) throw new Error('Ce fichier n\'est pas un .gtext valide.');
+
+    const enc   = text.substring(MAGIC.length + 1);
+    const bytes = CryptoJS.AES.decrypt(enc, pass);
+    const plain = bytes.toString(CryptoJS.enc.Utf8);
+    if (!plain) throw new Error('wrong_pass');
+    const data  = JSON.parse(plain);
+    if (data.magic !== MAGIC) throw new Error('wrong_pass');
+
+    editor.innerHTML = data.content;
+    currentFilename  = pendingNasName;
+    document.getElementById('filename-display').textContent = pendingNasName;
+    closeModal('modal-nas');
+    toast('Ouvert depuis le NAS : ' + pendingNasName);
+
+  } catch(e) {
+    const msg = e.message === 'wrong_pass' ? 'Mot de passe incorrect.' : (e.message || 'Erreur de téléchargement.');
+    err.textContent = msg; err.style.display = 'block';
+  } finally {
+    btn.textContent = 'Ouvrir'; btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), {href:url, download:filename});
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function wordCount(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const t = div.textContent.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+</script>
+</body>
+</html>
